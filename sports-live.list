@@ -3,7 +3,10 @@
 # 这些站的播放页/播放器/HLS 流域名经常更换，更新后重跑脚本并 push 即可。
 # 用途：海外/机房出口访问会被对端按地区拒绝，命中本清单的域名走 DIRECT（前提：出口在大陆）。
 +.52kq.top
++.egmdispatch.com
 +.jgdhds.com
++.letaocm.top
++.qmuiw.com
 +.sportsteam25.com
 +.sportsteam368.com
 +.yjjcfw.com
