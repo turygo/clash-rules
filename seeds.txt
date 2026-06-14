@@ -1,4 +1,5 @@
 # 解析种子：每行一个稳定的播放页 URL，# 开头为注释。
 # 每天由 GitHub Action 跑 resolve-source.js，把解析出的域名并集合并进 sports-live.list。
 # 注意：这些是单场/频道页，失效(404)后请换成当前有效的播放页。
-http://play.sportsteam368.com/play/steam816357.html
+http://play.sportsteam368.com/play/steam816433.html
+http://play.jgdhds.com/play/steam816433.html

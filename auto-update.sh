@@ -9,13 +9,13 @@ git pull --quiet --rebase --autostash
 
 # update-list.js：成功退出 0（无论有无新增）；所有种子全失败退出 2 → 不提交，保留原清单
 if node update-list.js; then
-  if [[ -n "$(git status --porcelain sports-live.list)" ]]; then
-    git add sports-live.list
+  if [[ -n "$(git status --porcelain sports-live.list seeds.txt)" ]]; then
+    git add sports-live.list seeds.txt
     git commit -q -m "chore: auto-update sports-live domains ($(date -u +%F))"
     git push -q
     echo "已更新并推送"
   else
-    echo "无新增域名"
+    echo "无变化，跳过提交"
   fi
 else
   echo "解析全部失败（IP 可能被屏蔽），保留原清单不提交" >&2
