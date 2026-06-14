@@ -6,19 +6,20 @@
  *   播放页 → 各线路 /play/*.php?id=xx（页面内嵌 XXTEA 加密 token: encodedStr）
  *     → cloud.yumixiu768.com/player/paps.html?id=<token>
  *       → XXTEA 解密 token → {url: m3u8, ts: 过期时间戳}
- * 真实流域名（如 yjjcfw.com）经常更换，本脚本自动走完整条链路把它们解出来。
+ * 真实流域名（如 yjjcfw.com / 52kq.top）经常更换，本脚本自动走完整条链路把它们解出来。
  *
- * 用法: node resolve-source.js <播放页URL>
- *   例: node resolve-source.js http://play.sportsteam368.com/play/steam816357.html
- * 输出: 去重后的最终域名清单（+.domain 形式，可直接进 clash domain 规则）
+ * 作为 CLI:   node resolve-source.js <播放页URL>          # 打印 +.domain 清单
+ * 作为模块:   const { resolvePage } = require('./resolve-source.js')
+ *            await resolvePage(url) -> string[]（裸域名，去重）
  *
- * 依赖站点自身的 index.min.js(XXTEA 实现) 与 paps.html(解密逻辑)，
- * 站点换 KEY 也能自适应；若站点重构页面结构则需相应调整。
+ * 复用站点自身的 index.min.js(XXTEA) 与 paps.html(解密逻辑)，站点换 KEY 也能自适应；
+ * 若站点重构页面结构则需相应调整。
  */
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36';
 
 async function fetchText(url, referer) {
   const res = await fetch(url, { headers: { 'User-Agent': UA, ...(referer ? { Referer: referer } : {}) } });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
   return res.text();
 }
 function regDomain(host) {                 // 取可注册主域 (a.b.example.com -> example.com)
@@ -54,35 +55,37 @@ function decryptToken(xxteaLib, papsHtml, token) {
   catch { return null; }
 }
 
-(async () => {
-  const pageUrl = process.argv[2];
-  if (!pageUrl) { console.error('用法: node resolve-source.js <播放页URL>'); process.exit(1); }
+// 解析单个播放页，返回命中的裸域名数组（含播放页/播放器/最终流域名）
+async function resolvePage(pageUrl) {
   const origin = new URL(pageUrl).origin;
   const domains = new Set();
-  domains.add(regDomain(new URL(pageUrl).hostname));   // 播放页域名
-
-  const page = await fetchText(pageUrl);
-  // 取所有线路的播放地址
+  const page = await fetchText(pageUrl);            // 失败抛错，调用方决定是否吞掉
+  domains.add(regDomain(new URL(pageUrl).hostname));
   const plays = [...page.matchAll(/data-play="([^"]+)"/g)].map(m => m[1]);
-  // paps 解密所需的站点 JS（一次拉取复用）
   const xxteaLib = await fetchText('http://cloud.yumixiu768.com/player/index.min.js');
   let papsHtml = null;
-
   for (const play of [...new Set(plays)]) {
     const lineUrl = play.startsWith('http') ? play : origin + play;
     let html;
     try { html = await fetchText(lineUrl, pageUrl); } catch { continue; }
     const m = html.match(/encodedStr\s*=\s*'([^']+)'/);
-    if (!m) continue;                                  // 非 cloud 播放器线路，跳过
-    domains.add('yumixiu768.com');                     // 播放器域名
+    if (!m) continue;                                // 非 cloud 播放器线路，跳过
+    domains.add('yumixiu768.com');
     if (!papsHtml) papsHtml = await fetchText('http://cloud.yumixiu768.com/player/paps.html?id=' + m[1], lineUrl);
     const streamUrl = decryptToken(xxteaLib, papsHtml, m[1]);
-    if (streamUrl) {
-      try { domains.add(regDomain(new URL(streamUrl).hostname)); } catch {}
-    }
+    if (streamUrl) { try { domains.add(regDomain(new URL(streamUrl).hostname)); } catch {} }
   }
+  return [...domains];
+}
 
-  const out = [...domains].sort().map(d => '+.' + d);
-  console.error(`解析 ${pageUrl}\n命中线路 ${plays.length} 条，最终域名:`);
-  console.log(out.join('\n'));
-})();
+module.exports = { resolvePage, regDomain };
+
+if (require.main === module) {
+  (async () => {
+    const pageUrl = process.argv[2];
+    if (!pageUrl) { console.error('用法: node resolve-source.js <播放页URL>'); process.exit(1); }
+    const domains = await resolvePage(pageUrl);
+    console.error(`解析 ${pageUrl}，最终域名:`);
+    console.log(domains.sort().map(d => '+.' + d).join('\n'));
+  })().catch((e) => { console.error('解析失败:', e.message); process.exit(1); });
+}
